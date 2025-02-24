@@ -25,6 +25,12 @@ try:
             else:
                 print("未找到图标，3秒后重试...")
         
+        except NotImplementedError as e:
+            print("需要安装 OpenCV 以使用 'confidence' 参数。")
+            print("请运行以下命令安装 OpenCV：")
+            print("pip install opencv-python")
+            break
+        
         except pyautogui.ImageNotFoundException:
             print("图标未找到，3秒后重试...")
         
