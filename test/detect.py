@@ -9,7 +9,8 @@ ICON_IMAGE = "img.jpg"
 
 # 定义分屏的区域 (左上角x, 左上角y, 宽度, 高度)
 REGION = (0, 0, 1920, 1080)  # 例如：第一块屏幕的区域
-
+x=0
+y=0
 try:
     while True:
         try:
@@ -21,8 +22,8 @@ try:
                 x, y = pyautogui.center(location)
                 # 执行点击
                 pyautogui.click(x, y)
-                pyautogui.click(x, y)
-                
+                pyautogui.moveTo(x+200, y)
+                pyautogui.click(x+200, y)
                 print(f"Clicked icon at ({x}, {y})")
             else:
                 print("未找到图标，3秒后重试...")
@@ -34,6 +35,8 @@ try:
             break
         
         except pyautogui.ImageNotFoundException:
+            pyautogui.moveTo(x+200, y)
+            pyautogui.click(x+200, y)
             print("图标未找到，3秒后重试...")
         
         time.sleep(3)
