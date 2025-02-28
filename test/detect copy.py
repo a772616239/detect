@@ -47,6 +47,7 @@ stage_config = [
         
     }
 ]
+fscale=1
 filename = SaveReadingData.filename
 base_point = None
 current_stage = 0
@@ -54,6 +55,11 @@ times=0
 arrIndex=0
 arrIndex = SaveReadingData.load_data(filename)+1
 print(f"arrIndex:{arrIndex}")
+
+def scale_position(pos):
+    """将坐标缩放为fscale倍以适应Retina屏幕"""
+    return (int(pos[0] * fscale), int(pos[1] * fscale))
+
 def wait_until_found(image_path, timeout=None):
     """实时识别直到找到目标或超时"""
     start_time = time.time()
@@ -65,8 +71,9 @@ def wait_until_found(image_path, timeout=None):
             location = pyautogui.locateOnScreen(image_path, confidence=0.8, grayscale=True)
             if location:
                 x, y = pyautogui.center(location)
-                print(f"[识别成功] {image_path} ({x}, {y})")
-                return (x, y)
+                scaled_pos = scale_position((x, y))  # 坐标缩放
+                print(f"[识别成功] {image_path} ({scaled_pos[0]}, {scaled_pos[1]})")
+                return scaled_pos
             print(f"[扫描中] 等待识别：{image_path}...")
             time.sleep(1.8)
         except Exception as e:
@@ -104,7 +111,10 @@ try:
 
         # 执行偏移点击操作
         if "click_offset" in stage:
+            # 缩放偏移量
             offset_x, offset_y = stage["click_offset"]
+            offset_x = int(offset_x * fscale)
+            offset_y = int(offset_y * fscale)
             target_x = img_pos[0] + offset_x
             target_y = img_pos[1] + offset_y
             pyautogui.click(target_x, target_y)
@@ -118,7 +128,10 @@ try:
 
         # 执行基点偏移移动
         if base_point and "base_offset" in stage:
+            # 缩放偏移量
             offset_x, offset_y = stage["base_offset"]
+            offset_x = int(offset_x * fscale)
+            offset_y = int(offset_y * fscale)
             target_x = base_point[0] + offset_x
             target_y = base_point[1] + offset_y
             pyautogui.moveTo(target_x, target_y)
@@ -126,7 +139,7 @@ try:
             print(f"已移动到偏移坐标：({target_x}, {target_y})")
             time.sleep(1.7)
 
-        # 执行键盘操作
+        # 执行键盘操作（无需坐标调整）
         if "keyboard_actions" in stage:
             print("执行键盘操作：", stage["keyboard_actions"])
             # 加载数据
@@ -142,14 +155,13 @@ try:
 
             strContent=ImgAll.ImgArr[arrIndex]["description"]
             print(strContent)
-            # pyautogui.write(strContent)
             pyperclip.copy(strContent)
             for action in stage["keyboard_actions"]:
                 if action == "ctrl+a":
                     pyautogui.hotkey('command', 'a')
                 elif action == "ctrl+v":
                     pyautogui.hotkey('command', 'v')
-                time.sleep(0.5)
+                time.sleep(0.6)
 
         # 阶段切换
         current_stage += 1
