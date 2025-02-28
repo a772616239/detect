@@ -1,19 +1,17 @@
+
 import pyautogui
 import time
-
+import pyperclip
+import ImgAll
+import SaveReadingData
 pyautogui.FAILSAFE = False
 
-# 阶段配置（请确保图片路径正确）
 stage_config = [
     {   # 第一阶段必须成功（设置基点）
         "image": "img1.jpg",
-        "base_offset": (300, 0),
-        "click_image": True
-    },
-    {
-        "image": "img2.jpg", 
-        "base_offset": (600, 0), 
-        "click_image": True
+        "base_offset": (600, -250),
+        "click_image": True,
+        "timeout": 28
     },
     {   # 后续阶段
         "image": "img2.jpg", 
@@ -22,46 +20,96 @@ stage_config = [
     },
     {
         "image": "img2.jpg", 
-        "base_offset": (600, -250), 
+        "base_offset": (300, 0), 
         "click_image": True
     },
     {
         "image": "img2.jpg", 
-        "base_offset": (600, -250), 
+        "base_offset": (600, 0), 
         "click_image": True
+    },
+    {
+        "image": "img2.jpg", 
+        "base_offset": (600, 0), 
+        "click_image": True
+    },
+    {
+        "image": "img4.jpg", 
+        "base_offset": (600, -250), 
+        "click_image": True,
+        "timeout": 1
+    },
+    {   # 新增阶段：识别img3并操作输入框
+        "image": "img3.jpg",
+        "click_image": False,
+        "click_offset": (100, 200),
+        "keyboard_actions": ["ctrl+a", "ctrl+v"],
+        
     }
 ]
-
+filename = SaveReadingData.filename
 base_point = None
 current_stage = 0
-
-def wait_until_found(image_path):
-    """实时识别直到找到目标"""
+times=0
+arrIndex=0
+arrIndex = SaveReadingData.load_data(filename)+1
+print(f"arrIndex:{arrIndex}")
+def wait_until_found(image_path, timeout=None):
+    """实时识别直到找到目标或超时"""
+    start_time = time.time()
     while True:
         try:
+            if timeout is not None and time.time() - start_time >= timeout:
+                print(f"[超时] {timeout}秒内未找到图片：{image_path}")
+                return None
             location = pyautogui.locateOnScreen(image_path, confidence=0.8, grayscale=True)
             if location:
                 x, y = pyautogui.center(location)
                 print(f"[识别成功] {image_path} ({x}, {y})")
                 return (x, y)
             print(f"[扫描中] 等待识别：{image_path}...")
-            time.sleep(0.8)  # 更快的扫描频率
+            time.sleep(1.8)
         except Exception as e:
             print(f"[异常] {str(e)}")
-            time.sleep(1)
+            time.sleep(2)
 
 try:
     while True:
         stage = stage_config[current_stage]
         print(f"\n—— 阶段 {current_stage} ——")
+        timeout=20
+        if stage.get("timeout", None):
+            timeout = stage["timeout"]
+            
+        # 根据阶段设置超时时间
+        if current_stage == 0:
+            img_pos = wait_until_found(stage["image"])
+        else:
+            img_pos = wait_until_found(stage["image"], timeout=timeout)
         
-        # 阻塞式识别当前阶段图片
-        img_pos = wait_until_found(stage["image"])
+        if img_pos is None:
+            print(f"阶段 {current_stage} 识别超时，进入下一阶段。")
+            current_stage += 1
+            if current_stage >= len(stage_config):
+                print("\n===== 完成循环 =====")
+                current_stage = 0
+                base_point = None
+                time.sleep(2)
+            continue
         
-        # 点击识别到的图片
-        if stage["click_image"]:
+        # 点击图片位置
+        if stage.get("click_image", False):
             pyautogui.click(img_pos)
             print(f"已点击图片坐标：{img_pos}")
+
+        # 执行偏移点击操作
+        if "click_offset" in stage:
+            offset_x, offset_y = stage["click_offset"]
+            target_x = img_pos[0] + offset_x
+            target_y = img_pos[1] + offset_y
+            pyautogui.click(target_x, target_y)
+            print(f"已点击偏移坐标：({target_x}, {target_y})")
+            time.sleep(1)  # 确保输入框获得焦点
 
         # 设置初始基点（仅第一阶段）
         if current_stage == 0:
@@ -69,24 +117,50 @@ try:
             print(f"基点坐标已记录：{base_point}")
 
         # 执行基点偏移移动
-        if base_point:
-            target_x = base_point[0] + stage["base_offset"][0]
-            target_y = base_point[1] + stage["base_offset"][1]
+        if base_point and "base_offset" in stage:
+            offset_x, offset_y = stage["base_offset"]
+            target_x = base_point[0] + offset_x
+            target_y = base_point[1] + offset_y
             pyautogui.moveTo(target_x, target_y)
             pyautogui.moveTo(target_x+1, target_y+1)
             print(f"已移动到偏移坐标：({target_x}, {target_y})")
-            time.sleep(0.7)  # 移动后短暂停顿
+            time.sleep(1.7)
 
-        # 阶段切换逻辑
+        # 执行键盘操作
+        if "keyboard_actions" in stage:
+            print("执行键盘操作：", stage["keyboard_actions"])
+            # 加载数据
+            arrIndex = SaveReadingData.load_data(filename)
+            print(f"arrIndex:{arrIndex}")
+            if times<3:
+                times+=1
+            else:
+                times=0
+                arrIndex+=1
+                # 保存数据
+                SaveReadingData.save_data(arrIndex, filename)
+
+            strContent=ImgAll.ImgArr[arrIndex]["description"]
+            print(strContent)
+            # pyautogui.write(strContent)
+            pyperclip.copy(strContent)
+            for action in stage["keyboard_actions"]:
+                if action == "ctrl+a":
+                    pyautogui.hotkey('command', 'a')
+                elif action == "ctrl+v":
+                    pyautogui.hotkey('command', 'v')
+                time.sleep(0.5)
+
+        # 阶段切换
         current_stage += 1
         if current_stage >= len(stage_config):
             print("\n===== 完成循环 =====")
             current_stage = 0
             base_point = None
-            time.sleep(1)  # 循环重置等待
+            time.sleep(2)
         else:
             print("等待1秒进入下一阶段...")
-            time.sleep(1)  # 阶段间等待
+            time.sleep(1)
 
 except KeyboardInterrupt:
     print("\n程序终止")
